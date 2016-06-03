@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Dijkstra's Algorithm</title>
+</head>
+<body>
+    <canvas width="800" height="600"></canvas>
+    <textarea id="output" style="border-style: none; width: 300px; height: 600px"></textarea><br>
+    <input type="button" id="path" value="label nodes with Dijkstra's shortest paths for yyz&rarr;syd"
+           title="red nodes are eliminated and yellow nodes are labeled with a minimum distance" onclick='labelNodes("yyz", "syd")'/>
+    <input type="button" id="map" value="map the shortest path"
+           title="removes all untraveled nodes" disabled onclick='mapPath("yyz", "syd")'/>
+    <input type="button" id="pushme" value="push me"
+           title="what does this do?" disabled onclick='pushMe()'/>
+
+    <script type="text/javascript" src="d3.v4.0.0-alpha.44.min.js"></script>
+    <script type="text/javascript" src="dijkstras-algorithm-opt.js"></script>
+    <script type="text/javascript">
+
+        // d3 code adapted from http://bl.ocks.org/mbostock/ad70335eeef6d167bc36fd3c04378048
+        var canvas = document.querySelector("canvas"),
+            context = canvas.getContext("2d"),
+            width = canvas.width,
+            height = canvas.height
+
+        var simulation = d3.forceSimulation()
+            .force("link", d3.forceLink().id(function(d) { return d.id; }).distance(computeDistance))
+            .force("charge", d3.forceManyBody())
+            .force("center", d3.forceCenter(width / 2, height / 2))
+            .alphaDecay(0)
+
+        var exampleGraph = io.policarp.ExampleGraph()
+        println("loading ExampleGraph"); println(exampleGraph.graph)
+        var nodeIds = new Set(), links = []
+        mapNodes(exampleGraph.graphJS, nodeIds, links)
+        var nodes = Array.from(nodeIds).map(function(nodeId){ return {id: nodeId, colour: "#fff", labeledDistance: -1} })
+
+        simulation.nodes(nodes).on("tick", ticked)
+        simulation.force("link").links(links)
+        println("rendered nodes and edges (links)")
+
+        var dijkstraJS = io.policarp.dijkstra.DijkstraJS()
+        println("initialised DijkstraJS")
+        var pushedMe = false
+
+        function labelNodes(start, end) {
+            println("running Dijkstra's algorithm")
+            var startTime = new Date().getTime()
+            var labeling = dijkstraJS.dijkstra(exampleGraph.graph, start, end), endTime = new Date().getTime()
+            println("completed in " + (endTime - startTime) + "ms")
+
+            var output = ""
+            nodes.forEach(function(node){
+                if (labeling[node.id] !== undefined) {
+                    output += "marking node " + node.id + " with minimum distance of " + labeling[node.id].distance + "\n"
+                    node.colour = "yellow"
+                    node.labeledDistance = labeling[node.id].distance
+                } else {
+                    node.colour = "red"
+                    output += "removing node " + node.id + "\n"
+                }
+            })
+            println(output)
+            document.getElementById('map').disabled = false
+        }
+
+        function mapPath(start, end) {
+            var path = dijkstraJS.findPath(exampleGraph.graph, start, end)
+            var pathNodeIds = new Set()
+            path.forEach(function(edge){
+                pathNodeIds.add(edge.left.label)
+                pathNodeIds.add(edge.right.label)
+            })
+
+            var nodePath = [], linkPath = []
+            nodes.forEach(function(node){
+                if (pathNodeIds.has(node.id)) {
+                    node.colour = "green"
+                    nodePath.push(node)
+                }
+            })
+            path.forEach(function(edge){
+                linkPath.push( mapEdgeToLink(edge) )
+            })
+
+            links = linkPath
+            simulation.force("link").links(links)
+            nodes = nodePath
+
+            simulation.alphaDecay(0.01)
+            println("displaying the shortest path")
+            document.getElementById('pushme').disabled = false
+        }
+
+        function pushMe() {
+            pushedMe = true
+            var distances = []
+            links.forEach(function(link){
+                distances.push(link.distance)
+            })
+
+            var chain = "", anotherChain = ""
+            distances.forEach(function(d){
+                chain += (" &rarr; " + d)
+                anotherChain += (" " + String.fromCharCode(d))
+            })
+            println("displaying the distances travelled between nodes:")
+            println(chain)
+            println("and those distances converted to chars...")
+            println(anotherChain)
+            println("¯\\_(ツ)_/¯")
+        }
+
+        function mapNodes(graphJS, nodeIds, links) {
+            graphJS.forEach(function(edge){
+                nodeIds.add(edge.left.label)
+                nodeIds.add(edge.right.label)
+                links.push( mapEdgeToLink(edge) )
+            })
+        }
+
+        function mapEdgeToLink(edge) {
+            return {source: edge.left.label, target: edge.right.label, distance: edge.distance, colour: "#aaa"}
+        }
+
+        function ticked() {
+            context.clearRect(0, 0, width, height)
+            links.forEach(drawLink)
+            if (!pushedMe) nodes.forEach(drawNode)
+        }
+
+        function drawLink(d) {
+            context.beginPath()
+            context.moveTo(d.source.x, d.source.y)
+            context.lineTo(d.target.x, d.target.y)
+            if (pushedMe) {
+                context.fillText((d.distance + " [" + String.fromCharCode(d.distance) + "]"), d.target.x+10, d.target.y-10)
+            }
+            context.strokeStyle = d.colour
+            context.stroke()
+        }
+
+        function drawNode(d) {
+            context.beginPath()
+            context.moveTo(d.x + 3, d.y)
+            context.arc(d.x, d.y, 3, 0, 2 * Math.PI)
+            context.fillText(d.id, d.x+5, d.y+5)
+            if (d.labeledDistance > 0) context.fillText(d.labeledDistance, d.x+10, d.y-10)
+            context.fill()
+            context.strokeStyle = d.colour
+            context.stroke()
+        }
+
+        function computeDistance(link) {
+            return Math.log(link.distance)
+        }
+
+        function println(message) {
+            var output = document.getElementById("output")
+            output.innerHTML += (message + "\n\n")
+            output.scrollTop = output.scrollHeight
+        }
+
+    </script>
+</body>
+</html>
