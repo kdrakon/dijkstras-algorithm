@@ -51,9 +51,8 @@ object Dijkstra {
         nodeLabelTuple => nodeLabelTuple._2.distance
       }
 
-    if (source == target) return nodeDistanceMap
-    if (newSources.isEmpty) return nodeDistanceMap
-
+    if (source == target || newSources.isEmpty) return nodeDistanceMap
+    
     lazy val nextSourceNode = newSources.head._1
 
     dijkstra(graph.filterNot(edgeFilter), nextSourceNode, target, newNodeDistanceMap)
